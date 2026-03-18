@@ -4,8 +4,9 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-const OpenAI = require('openai');
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 app.get('/', (req, res) => {
   res.send('Party Barn AI Receptionist is running! Twilio should point to /incoming');
@@ -91,16 +92,19 @@ app.post('/handle-speech', async (req, res) => {
   let shouldTransfer = false;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      max_tokens: 150,
-      messages: [
-        { role: 'system', content: STORE_INFO },
-        ...conversations[callSid]
-      ]
+    // Format history for Gemini
+    const history = conversations[callSid].slice(0, -1).map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'model',
+      parts: [{ text: msg.content }],
+    }));
+
+    const chat = model.startChat({
+      history: history,
+      systemInstruction: STORE_INFO,
     });
 
-    replyText = response.choices[0].message.content.trim();
+    const result = await chat.sendMessage(userSpeech);
+    replyText = result.response.text().trim();
 
     // Check if AI wants to transfer
     if (
@@ -116,7 +120,7 @@ app.post('/handle-speech', async (req, res) => {
 
     console.log(`[${callSid}] Bot replied: "${replyText}"`);
   } catch (err) {
-    console.error('OpenAI error:', err.message);
+    console.error('Gemini error:', err.message);
     replyText = "Sorry, give me just one second — let me grab someone to help you.";
     shouldTransfer = true;
   }
