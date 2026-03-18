@@ -4,14 +4,6 @@ const app = express();
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-app.get('/', (req, res) => {
-  res.send('Party Barn AI Receptionist is running! Twilio should point to /incoming');
-});
-
 // ─── STORE KNOWLEDGE ────────────────────────────────────────────────────────
 const STORE_INFO = `
 You are the friendly AI receptionist for Party Barn, Austin’s drive-thru beer and keg store.
@@ -57,6 +49,17 @@ DATA COLLECTION (If customer wants help/callback):
 - Product interest
 `;
 
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  systemInstruction: STORE_INFO
+});
+
+app.get('/', (req, res) => {
+  res.send('Party Barn AI Receptionist is running! Twilio should point to /incoming');
+});
+
 // ─── CONVERSATION STORE (in-memory, resets on server restart) ────────────────
 const conversations = {};
 
@@ -100,7 +103,6 @@ app.post('/handle-speech', async (req, res) => {
 
     const chat = model.startChat({
       history: history,
-      systemInstruction: STORE_INFO,
     });
 
     const result = await chat.sendMessage(userSpeech);
@@ -120,7 +122,10 @@ app.post('/handle-speech', async (req, res) => {
 
     console.log(`[${callSid}] Bot replied: "${replyText}"`);
   } catch (err) {
-    console.error('Gemini error:', err.message);
+    console.error(`[${callSid}] Gemini error:`, err.message);
+    if (err.message.includes('API key')) {
+      console.error(`[${callSid}] CRITICAL: Your GOOGLE_API_KEY is missing or invalid on Render!`);
+    }
     replyText = "Sorry, give me just one second — let me grab someone to help you.";
     shouldTransfer = true;
   }
