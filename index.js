@@ -7,6 +7,10 @@ app.use(express.json());
 const OpenAI = require('openai');
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+app.get('/', (req, res) => {
+  res.send('Party Barn AI Receptionist is running! Twilio should point to /incoming');
+});
+
 // ─── STORE KNOWLEDGE ────────────────────────────────────────────────────────
 const STORE_INFO = `
 You are the friendly AI receptionist for Party Barn, a party and beer store in Austin, TX.
